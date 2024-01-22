@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kbot-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kbot
+  template:
+    metadata:
+      labels:
+        app: kbot
+    spec:
+      containers:
+        - name: kbot
+          image: ghcr.io/viktordevopscourse/kbot:v1.0.6-67edd59-linux-amd64
+          env:
+            - name: METRICS_HOST
+              value: "collector-service:4317"
+            - name: TELE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: kbot-token
+                  key: token
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kbot-service
+spec:
+  selector:
+    app: kbot
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kbot-token
+type: Opaque
+data:
+  token: <your secret>

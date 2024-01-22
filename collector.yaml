@@ -1,0 +1,87 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: collector
+  template:
+    metadata:
+      labels:
+        app: collector
+    spec:
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector-contrib:0.78.0
+          args:
+            - "--config=/etc/otel-collector/otel-collector-config.yaml"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/otel-collector
+          ports:
+            - containerPort: 3030
+            - containerPort: 8889
+      volumes:
+        - name: config-volume
+          configMap:
+            name: collector-config
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: collector-config
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+            endpoint: "0.0.0.0:3030"
+    
+    exporters:
+      logging: { }
+      loki:
+        endpoint: loki-service:3100/loki/api/v1/push
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+    
+    service:
+      pipelines:
+        logs:
+          receivers: [ otlp ]
+          exporters: [ loki ]
+        traces:
+          receivers: [ otlp ]
+          exporters: [ logging ]
+        metrics:
+          receivers: [ otlp ]
+          exporters: [ logging, prometheus ]
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-service
+spec:
+  selector:
+    app: collector
+  ports:
+    - protocol: TCP
+      name: "main"
+      port: 4317
+      targetPort: 4317
+    - protocol: TCP
+      name: "exporters"
+      port: 8889
+      targetPort: 8889
+    - protocol: TCP
+      name: "receivers"
+      port: 3030
+      targetPort: 3030
